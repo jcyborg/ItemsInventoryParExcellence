@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ItemsInventoryParExcellence.DataLayer.ApplicationUsers.Models;
 
+[Index("ItemNo", Name = "UQ_ItemNo", IsUnique = true)]
 public partial class Item
 {
     [Key]

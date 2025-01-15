@@ -1,4 +1,5 @@
-﻿using ItemsInventoryParExcellence.DataLayer.ApplicationUsers;
+﻿using EFCore.BulkExtensions;
+using ItemsInventoryParExcellence.DataLayer.ApplicationUsers;
 using ItemsInventoryParExcellence.DataLayer.ApplicationUsers.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,40 +19,102 @@ namespace ItemsInventoryParExcellence.Controllers
         }
 
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadFile([FromForm] IFormFile file)
+        public async Task<IActionResult> UploadFile(IFormFile file)
         {
             if (file == null || file.Length == 0)
-                return BadRequest("File is empty.");
+                return BadRequest("No file uploaded.");
 
-            using var stream = new StreamReader(file.OpenReadStream());
-            while (!stream.EndOfStream)
+            var items = new List<Item>();
+
+            using (var reader = new StreamReader(file.OpenReadStream()))
             {
-                var line = await stream.ReadLineAsync();
-                var parts = line.Split('|');
-                if (parts.Length != 4) continue;
+                bool isFirstLine = true;
 
-                var item = new Item
+                while (!reader.EndOfStream)
                 {
-                    ItemNo = parts[0],
-                    ItemDescription = parts[1],
-                    Quantity = int.Parse(parts[2]),
-                    Price = decimal.Parse(parts[3])
-                };
+                    var line = await reader.ReadLineAsync();
 
-                if (!_context.Items.Any(i => i.ItemNo == item.ItemNo))
-                {
-                    _context.Items.Add(item);
+                    // Skip the header line
+                    if (isFirstLine)
+                    {
+                        isFirstLine = false;
+                        continue;
+                    }
+
+                    var parts = line.Split('|');
+                    if (parts.Length == 4)
+                    {
+                        try
+                        {
+                            items.Add(new Item
+                            {
+                                ItemNo = parts[0],
+                                ItemDescription = parts[1],
+                                Quantity = int.Parse(parts[2]),
+                                Price = decimal.Parse(parts[3])
+                            });
+                        }
+                        catch (FormatException)
+                        {
+                            return BadRequest($"Invalid data format on line: {line}");
+                        }
+                    }
+                    else
+                    {
+                        return BadRequest($"Invalid line structure: {line}");
+                    }
                 }
             }
 
-            await _context.SaveChangesAsync();
-            return Ok("File uploaded and data imported.");
+            // Remove duplicates programmatically
+            var distinctItems = items
+                .GroupBy(i => i.ItemNo) // Group by ItemNo
+                .Select(g => g.First()) // Select the first occurrence in each group
+                .ToList();
+
+            try
+            {
+                // Perform bulk insert or update
+                await _context.BulkInsertOrUpdateAsync(distinctItems);
+
+                return Ok("File uploaded and processed successfully.");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"An error occurred: {ex.Message}");
+            }
         }
 
-        [HttpGet]
-        public async Task<ActionResult<List<Item>>> GetItems()
+
+
+        [HttpGet("items")]
+        public async Task<ActionResult<object>> GetItems(int page = 1, int pageSize = 20)
         {
-            return await _context.Items.ToListAsync();
+            if (page < 1 || pageSize < 1)
+                return BadRequest("Page and pageSize must be greater than 0.");
+
+            // Calculate total items and pages
+            var totalItems = await _context.Items.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+            // Fetch the paginated data
+            var items = await _context.Items
+                .OrderBy(i => i.ItemNo) // Ensure consistent ordering
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // Return the paginated data with metadata
+            return Ok(new
+            {
+                Page = page,
+                PageSize = pageSize,
+                TotalItems = totalItems,
+                TotalPages = totalPages,
+                Data = items
+            });
         }
+
+
     }
 }
