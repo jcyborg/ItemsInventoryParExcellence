@@ -24,7 +24,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularApp", policy =>
-        policy.WithOrigins("http://localhost:4200")
+        policy.WithOrigins("invenntoryapp-b6azfbbjbmanaggj.eastus2-01.azurewebsites.net")
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
