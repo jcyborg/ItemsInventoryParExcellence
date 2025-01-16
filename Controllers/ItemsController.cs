@@ -87,7 +87,7 @@ namespace ItemsInventoryParExcellence.Controllers
 
 
 
-        [HttpGet("items")]
+        [HttpGet]
         public async Task<ActionResult<object>> GetItems(int page = 1, int pageSize = 20)
         {
             if (page < 1 || pageSize < 1)
@@ -115,6 +115,19 @@ namespace ItemsInventoryParExcellence.Controllers
             });
         }
 
+        [HttpDelete("delete-all")]
+        public async Task<IActionResult> DeleteAllItems()
+        {
+            var allItems = await _context.Items.ToListAsync();
 
+            if (allItems.Any())
+            {
+                _context.Items.RemoveRange(allItems);
+                await _context.SaveChangesAsync();
+                return Ok("All items deleted successfully.");
+            }
+
+            return NotFound("No items to delete.");
+        }
     }
 }
