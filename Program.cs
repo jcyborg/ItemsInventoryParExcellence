@@ -30,7 +30,8 @@ builder.Services.AddCors(options =>
 });
 #endif
 builder.Services.AddDbContext<AppUsersContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("UsersConnString")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("UsersConnString")
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__UsersConnString")));
 builder.Services.AddScoped<AppUsersContext>();
 
 var app = builder.Build();
